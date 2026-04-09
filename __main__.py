@@ -1,5 +1,6 @@
 import pygame
 import random
+import pancake_brain as pb
 
 WIDTH, HEIGHT = 600, 700
 
@@ -56,10 +57,45 @@ class PancakePuzzle:
         self.stack.draw(self.screen)
         pygame.display.flip()
 
+    def solve(self):
+        
+        initial_state = tuple(pancake.rank for pancake in self.stack.items)
+        
+        goal_node = pb.solve(initial_state, method="astar", heuristic_name="gap")
+        
+        if not goal_node:
+            print("no solution")
+            return
+
+        solution_path = []
+        current_node = goal_node
+        
+        while current_node.parent is not None:
+            solution_path.append(current_node.state.stack) 
+            current_node = current_node.parent
+            
+        solution_path.reverse()
+        
+        for target_state in solution_path:
+            current_ranks = [pancake.rank for pancake in self.stack.items]
+            
+            flip_index = 0
+            for i in range(len(current_ranks) - 1, -1, -1):
+                if current_ranks[i] != target_state[i]:
+                    flip_index = i
+                    break
+            
+            if flip_index > 0: 
+                self.stack.flip(flip_index) 
+                self.draw()                    
+                pygame.time.wait(250)    
+
     def run(self):
+        self.solve()
+        '''
         while True:
             self.move()
             self.draw()
-
+        '''
 if __name__ == "__main__":
     PancakePuzzle().run()
