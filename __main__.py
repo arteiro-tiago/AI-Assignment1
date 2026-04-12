@@ -146,7 +146,6 @@ class App:
         self.ai_method = "astar"
         self.ai_heur = "gap"
         self.hint_idx = None      # índice do flip sugerido pelo hint
-        self.hint_timer = 0      # timestamp até quando o hint é mostrado
         self.setup_mode = None    # "manual" ou "ai", definido no menu
 
         self.win_moves = 0
@@ -158,7 +157,6 @@ class App:
         self.ai_delay = 350       # milissegundos entre cada passo da animação
         self.ai_last = 0          # timestamp do último passo animado
         self.ai_stats = {}        # estatísticas do solver
-        self.ai_done = False      # True quando o solver terminar
 
 
     # ciclo principal: processa eventos e delega o desenho ao handler do estado atual
@@ -348,13 +346,8 @@ class App:
             if yy <= my <= yy + p0.height:
                 hover_idx = i; break
 
-        # determina se o hint ainda está dentro do tempo de exibição
-        hl = None
-        if self.hint_idx is not None:
-            if pygame.time.get_ticks() < self.hint_timer:
-                hl = self.hint_idx
-            else:
-                self.hint_idx = None   # hint expirou
+        # destaca a peça do hint se estiver ativo
+        hl = self.hint_idx
 
         self.stack.draw(surf, cx, start_y, highlight_idx=hl)
 
@@ -385,29 +378,22 @@ class App:
             self.state = self.WIN
 
     def request_hint(self):
-        # pede ao solver (com o A* + gap) o próximo flip ótimo e ativa o highlight durante 2 segundos
+        # pede ao solver (com o A* + gap) o próximo flip ótimo e ativa o highlight
         idx = pb.get_hint(self.stack.as_tuple())
         if idx is not None:
             self.hint_idx = idx
-            self.hint_timer = pygame.time.get_ticks() + 2000   # 2000 ms = 2 segundos
 
     def start_ai(self):
-        import threading
         self.ai_queue = []
         self.ai_stats = {}
-        self.ai_done = False
         self.ai_last = pygame.time.get_ticks()
 
-        def worker():
-            initial = self.stack.as_tuple()
-            goal, t, mem, states = pb.solve(
-                initial, method=self.ai_method, heuristic_name=self.ai_heur)
-            path = pb.get_path(goal)                            # lista de estados desde inicial até solução
-            self.ai_queue = path
-            self.ai_stats = {"time": t, "mem": mem, "states": states, "moves": len(path)-1, "path": path}
-            self.ai_done = True                                 # sinaliza o main loop que pode começar a animar
-
-        threading.Thread(target=worker, daemon=True).start()   # daemon=True: a thread morre com o programa
+        initial = self.stack.as_tuple()
+        goal, t, mem, states = pb.solve(
+            initial, method=self.ai_method, heuristic_name=self.ai_heur)
+        path = pb.get_path(goal)                            # lista de estados desde inicial até solução
+        self.ai_queue = path
+        self.ai_stats = {"time": t, "mem": mem, "states": states, "moves": len(path)-1, "path": path}
 
     def handle_ai(self, events):
         surf = self.screen
@@ -427,10 +413,6 @@ class App:
         stack_h = n * slot
         start_y = (HEIGHT - stack_h) // 2 + 20
         self.stack.draw(surf, WIDTH // 2, start_y)
-
-        if not self.ai_done:
-            draw_text(surf, "Solving...", self.font_h2, ACCENT, WIDTH//2, 52)
-            return   
 
         # avança um passo da animação a cada ai_delay 
         now = pygame.time.get_ticks()
@@ -500,8 +482,8 @@ class App:
                         self.start_ai()
                         self.state = self.AI_SOLVE
 
+    # guarda o resultado da sessão (caminho, movimentos, tempo, memória) no "output.txt"
     def save_result(self):
-        # guarda o resultado da sessão (caminho, movimentos, tempo, memória) no "output.txt"
         if not self.stack: return
         if self.mode == "ai":
             sol_path = self.ai_stats.get("path", [])
