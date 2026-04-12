@@ -7,25 +7,15 @@ import file_io
 
 WIDTH, HEIGHT = 620, 720
 
-BG       = (18,  18,  22)
-ACCENT   = (255, 195,  50)
-ACCENT2  = (80,  180, 240)
-TEXT     = (230, 230, 230)
+BG = (18,  18,  22)
+ACCENT = (255, 195,  50)
+ACCENT2 = (80,  180, 240)
+TEXT = (230, 230, 230)
 TEXT_DIM = (120, 120, 130)
-BTN_BG   = (38,  38,  48)
-BTN_HOV  = (55,  55,  70)
-SUCCESS  = (80,  200, 120)
-QUIT   = (220,  80,  80)
-
-PANCAKE_COLORS = [
-    (200, 140,  50), (210, 155,  60), (220, 165,  70),
-    (225, 175,  80), (230, 185,  90), (235, 195, 100),
-    (240, 205, 110), (245, 215, 120), (250, 225, 130), (255, 235, 140),
-]
-
-
-def lerp_color(a, b, t):
-    return tuple(int(a[i] + (b[i]-a[i])*t) for i in range(3))
+BTN_BG = (38, 38, 48)
+BTN_HOV = (55, 55, 70)
+SUCCESS = (80, 200, 120)
+QUIT = (220, 80, 80)
 
 
 def draw_text(surf, text, font, color, cx, cy, anchor="center"):
@@ -46,34 +36,34 @@ def draw_button(surf, font, text, rect, hovered, color=None):
 
 def piece_dims(total):
     available_h = HEIGHT - 360
-    slot  = max(10, available_h // total)
-    h     = max(8, slot - 2)
-    gap   = slot - h
+    slot = max(10, available_h // total)
+    h = max(8, slot - 2)
+    gap = slot - h
     max_w = WIDTH - 120
     min_w = max(20, max_w // 4)
-    step  = max(1, (max_w - min_w) // max(total - 1, 1))
+    step = max(1, (max_w - min_w) // max(total - 1, 1))
     return h, gap, min_w, step
 
 
 class Piece:
     def __init__(self, rank, total):
-        self.rank   = rank
-        self.total  = total
+        self.rank = rank
+        self.total = total
         h, gap, min_w, step = piece_dims(total)
         self.height = h
-        self.gap    = gap
-        self.width  = min_w + (rank - 1) * step
+        self.gap = gap
+        self.width = min_w + (rank - 1) * step
 
     def color(self):
         t = (self.rank - 1) / max(self.total - 1, 1)
-        return PANCAKE_COLORS[int(t * (len(PANCAKE_COLORS) - 1))]
+        return (225, 20+int(200 * (1 - t)), 25)
 
     def draw(self, surf, cx, y, highlight=False):
         w = self.width
         rect = pygame.Rect(cx - w // 2, y, w, self.height)
         col = self.color()
         if highlight:
-            col = lerp_color(col, (255, 255, 255), 0.38)
+            col = (255, 255, 255)
         pygame.draw.rect(surf, col, rect, border_radius=6)
         pygame.draw.rect(surf, (0, 0, 0), rect, 1, border_radius=6)
         return rect
@@ -100,8 +90,7 @@ class Stack:
         self.path.append(self.as_tuple())
 
     def is_solved(self):
-        return all(self.items[i].rank <= self.items[i + 1].rank
-                   for i in range(len(self.items) - 1))
+        return all(self.items[i].rank <= self.items[i + 1].rank for i in range(len(self.items) - 1))
 
     def as_tuple(self):
         return tuple(p.rank for p in self.items)
@@ -118,11 +107,11 @@ class Stack:
 
 
 class App:
-    MENU     = "menu"
-    SETUP    = "setup"
-    PLAYING  = "playing"
+    MENU = "menu"
+    SETUP = "setup"
+    PLAYING = "playing"
     AI_SOLVE = "ai_solve"
-    WIN      = "win"
+    WIN = "win"
 
     def __init__(self):
         pygame.init()
@@ -130,31 +119,31 @@ class App:
         pygame.display.set_caption("Pancake Puzzle")
         self.clock  = pygame.time.Clock()
 
-        self.font_title = pygame.font.SysFont("Georgia",    44, bold=True)
-        self.font_h2    = pygame.font.SysFont("Georgia",    26, bold=True)
-        self.font_body  = pygame.font.SysFont("Courier New", 19)
-        self.font_sm    = pygame.font.SysFont("Courier New", 15)
+        self.font_title = pygame.font.SysFont("Georgia", 44, bold=True)
+        self.font_h2 = pygame.font.SysFont("Georgia", 26, bold=True)
+        self.font_body = pygame.font.SysFont("Courier New", 19)
+        self.font_sm = pygame.font.SysFont("Courier New", 15)
 
-        self.state      = self.MENU
-        self.stack      = None
-        self.mode       = None        # "manual" | "ai"
-        self.num_pan    = 7
-        self.ai_method  = "astar"
-        self.ai_heur    = "gap"
-        self.hint_idx   = None
+        self.state = self.MENU
+        self.stack = None
+        self.mode = None
+        self.num_pan = 7
+        self.ai_method = "astar"
+        self.ai_heur = "gap"
+        self.hint_idx = None
         self.hint_timer = 0
         self.setup_mode = None
 
-        self.win_moves  = 0
-        self.win_time   = 0.0
-        self.win_mem    = 0
+        self.win_moves = 0
+        self.win_time = 0.0
+        self.win_mem = 0
         self.win_states = 0
 
-        self.ai_queue   = []
-        self.ai_delay   = 350
-        self.ai_last    = 0
-        self.ai_stats   = {}
-        self.ai_done    = False
+        self.ai_queue = []
+        self.ai_delay = 350
+        self.ai_last = 0
+        self.ai_stats = {}
+        self.ai_done = False
 
 
     def run(self):
@@ -165,11 +154,16 @@ class App:
                 if e.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
 
-            if   self.state == self.MENU:     self.handle_menu(events)
-            elif self.state == self.SETUP:    self.handle_setup(events)
-            elif self.state == self.PLAYING:  self.handle_playing(events)
-            elif self.state == self.AI_SOLVE: self.handle_ai(events)
-            elif self.state == self.WIN:      self.handle_win(events)
+            if self.state == self.MENU:
+                self.handle_menu(events)
+            elif self.state == self.SETUP:
+                self.handle_setup(events)
+            elif self.state == self.PLAYING:
+                self.handle_playing(events)
+            elif self.state == self.AI_SOLVE:
+                self.handle_ai(events)
+            elif self.state == self.WIN:
+                self.handle_win(events)
 
             pygame.display.flip()
 
@@ -178,18 +172,18 @@ class App:
         surf.fill(BG)
 
         draw_text(surf, "PANCAKE", self.font_title, ACCENT, WIDTH//2, 130)
-        draw_text(surf, "PUZZLE",  self.font_title, TEXT,   WIDTH//2, 180)
+        draw_text(surf, "PUZZLE", self.font_title, TEXT, WIDTH//2, 180)
 
         mx, my = pygame.mouse.get_pos()
 
         btns = {
-            "play":  pygame.Rect(WIDTH//2-130, 300, 260, 52),
-            "ai":    pygame.Rect(WIDTH//2-130, 370, 260, 52),
-            "quit":  pygame.Rect(WIDTH//2-130, 460, 260, 52),
+            "play": pygame.Rect(WIDTH//2-130, 300, 260, 52),
+            "ai": pygame.Rect(WIDTH//2-130, 370, 260, 52),
+            "quit": pygame.Rect(WIDTH//2-130, 460, 260, 52),
         }
         labels = {
             "play": "Play Manually",
-            "ai":   "AI Solver",
+            "ai": "AI Solver",
             "quit": "Quit",
         }
         colors = {"play": ACCENT, "ai": ACCENT2, "quit": QUIT}
@@ -223,21 +217,21 @@ class App:
 
         draw_text(surf, "Number of Pancakes", self.font_body, TEXT_DIM, WIDTH//2, 115)
         minus_r = pygame.Rect(WIDTH//2-75, 138, 44, 36)
-        plus_r  = pygame.Rect(WIDTH//2+31, 138, 44, 36)
+        plus_r = pygame.Rect(WIDTH//2+31, 138, 44, 36)
         draw_button(surf, self.font_h2, "-", minus_r, minus_r.collidepoint(mx, my))
-        draw_button(surf, self.font_h2, "+", plus_r,  plus_r.collidepoint(mx, my))
+        draw_button(surf, self.font_h2, "+", plus_r, plus_r.collidepoint(mx, my))
         draw_text(surf, str(self.num_pan), self.font_h2, ACCENT, WIDTH//2, 156)
 
         y = 210
-        algo_rects  = {}
-        heur_rects  = {}
+        algo_rects = {}
+        heur_rects = {}
 
         if self.setup_mode == "ai":
             draw_text(surf, "Algorithm", self.font_body, TEXT_DIM, WIDTH//2, y); y += 32
-            methods   = ["bfs","dfs","ids","ucs","greedy","astar","wastar"]
-            col_w     = 82
-            total_w   = len(methods) * col_w
-            ax0       = WIDTH//2 - total_w//2
+            methods = ["bfs","dfs","ids","ucs","greedy","astar","wastar"]
+            col_w = 82
+            total_w = len(methods) * col_w
+            ax0 = WIDTH//2 - total_w//2
             for i, m in enumerate(methods):
                 r = pygame.Rect(ax0 + i*col_w, y, col_w-4, 34)
                 algo_rects[m] = r
@@ -248,8 +242,8 @@ class App:
             y += 46
 
             draw_text(surf, "Heuristic", self.font_body, TEXT_DIM, WIDTH//2, y); y += 32
-            heurs   = ["gap","adjancy","top_prime","l_top_prime"]
-            col_w2  = 130
+            heurs = ["gap","adjancy","top_prime","l_top_prime"]
+            col_w2 = 130
             total_w2 = len(heurs) * col_w2
             hx0 = WIDTH//2 - total_w2//2
             for i, h in enumerate(heurs):
@@ -262,16 +256,16 @@ class App:
             y += 50
 
         start_r = pygame.Rect(WIDTH//2-110, HEIGHT-205, 220, 48)
-        load_r  = pygame.Rect(WIDTH//2-110, HEIGHT-147, 220, 40)
-        back_r  = pygame.Rect(WIDTH//2-80,  HEIGHT-90,  160, 36)
-        draw_button(surf, self.font_body, "Start",          start_r, start_r.collidepoint(mx, my), ACCENT)
-        draw_button(surf, self.font_sm,   "Load from file", load_r,  load_r.collidepoint(mx, my),  ACCENT2)
-        draw_button(surf, self.font_sm,   "<- Back",        back_r,  back_r.collidepoint(mx, my))
+        load_r = pygame.Rect(WIDTH//2-110, HEIGHT-147, 220, 40)
+        back_r = pygame.Rect(WIDTH//2-80,  HEIGHT-90,  160, 36)
+        draw_button(surf, self.font_body, "Start", start_r, start_r.collidepoint(mx, my), ACCENT)
+        draw_button(surf, self.font_sm, "Load from file", load_r, load_r.collidepoint(mx, my), ACCENT2)
+        draw_button(surf, self.font_sm, "<- Back", back_r, back_r.collidepoint(mx, my))
 
         for e in events:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 if minus_r.collidepoint(mx, my): self.num_pan = max(3, self.num_pan-1)
-                if plus_r.collidepoint(mx, my):  self.num_pan = min(50, self.num_pan+1)
+                if plus_r.collidepoint(mx, my): self.num_pan = min(50, self.num_pan+1)
 
                 for m, r in algo_rects.items():
                     if r.collidepoint(mx, my): self.ai_method = m
@@ -281,7 +275,7 @@ class App:
                 if start_r.collidepoint(mx, my):
                     self.stack = Stack(num_pancakes=self.num_pan)
                     if self.setup_mode == "manual":
-                        self.mode  = "manual"
+                        self.mode = "manual"
                         self.state = self.PLAYING
                     else:
                         self.mode = "ai"
@@ -298,13 +292,13 @@ class App:
         try:
             items = file_io.read_board(os.path.join(os.getcwd(), fname))
             self.num_pan = len(items)
-            self.stack   = Stack(items=items)
+            self.stack = Stack(items=items)
             if self.setup_mode == "ai":
-                self.mode  = "ai"
+                self.mode = "ai"
                 self.start_ai()
                 self.state = self.AI_SOLVE
             else:
-                self.mode  = "manual"
+                self.mode = "manual"
                 self.state = self.PLAYING
         except Exception as ex:
             print(f"Could not load {fname}: {ex}")
@@ -321,7 +315,7 @@ class App:
 
         draw_button(surf, self.font_sm, "Hint", hint_r, hint_r.collidepoint(mx, my), ACCENT)
         draw_button(surf, self.font_sm, "Restart", restart_r, restart_r.collidepoint(mx, my))
-        draw_button(surf, self.font_sm, "<- Menu",  menu_r, menu_r.collidepoint(mx, my))
+        draw_button(surf, self.font_sm, "<- Menu", menu_r, menu_r.collidepoint(mx, my))
         draw_text(surf, f"Moves: {self.stack.moves}", self.font_sm, TEXT_DIM, WIDTH//2, 30)
 
         n = len(self.stack.items)
@@ -364,9 +358,9 @@ class App:
                     self.hint_idx = None
 
         if self.stack.is_solved():
-            self.win_moves  = self.stack.moves
-            self.win_time   = 0.0
-            self.win_mem    = 0
+            self.win_moves = self.stack.moves
+            self.win_time = 0.0
+            self.win_mem = 0
             self.win_states = 0
             self.save_result()
             self.state = self.WIN
@@ -374,15 +368,15 @@ class App:
     def request_hint(self):
         idx = pb.get_hint(self.stack.as_tuple())
         if idx is not None:
-            self.hint_idx  = idx
+            self.hint_idx = idx
             self.hint_timer = pygame.time.get_ticks() + 2000
 
     def start_ai(self):
         import threading
         self.ai_queue = []
         self.ai_stats = {}
-        self.ai_done  = False
-        self.ai_last  = pygame.time.get_ticks()
+        self.ai_done = False
+        self.ai_last = pygame.time.get_ticks()
 
         def worker():
             initial = self.stack.as_tuple()
@@ -391,7 +385,7 @@ class App:
             path = pb.get_path(goal)
             self.ai_queue = path
             self.ai_stats = {"time": t, "mem": mem, "states": states, "moves": len(path)-1, "path": path}
-            self.ai_done  = True
+            self.ai_done = True
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -409,7 +403,7 @@ class App:
 
         n = len(self.stack.items)
         p0 = self.stack.items[0]
-        slot    = p0.height + p0.gap
+        slot = p0.height + p0.gap
         stack_h = n * slot
         start_y = (HEIGHT - stack_h) // 2 + 20
         self.stack.draw(surf, WIDTH // 2, start_y)
@@ -429,15 +423,14 @@ class App:
             self.ai_last = now
 
         s = self.ai_stats
-        draw_text(surf, f"{self.ai_method.upper()} / {self.ai_heur}",
-                  self.font_sm, TEXT_DIM, WIDTH//2, 30)
+        draw_text(surf, f"{self.ai_method.upper()} / {self.ai_heur}", self.font_sm, TEXT_DIM, WIDTH//2, 30)
         steps_left = max(0, len(self.ai_queue)-1)
         draw_text(surf, f"Steps left: {steps_left}", self.font_sm, ACCENT, WIDTH//2, 50)
 
         if len(self.ai_queue) == 1 and self.stack.is_solved():
-            self.win_moves  = s.get("moves", self.stack.moves)
-            self.win_time   = s.get("time",  0)
-            self.win_mem    = s.get("mem",   0)
+            self.win_moves = s.get("moves", self.stack.moves)
+            self.win_time = s.get("time",  0)
+            self.win_mem = s.get("mem",   0)
             self.win_states = s.get("states",0)
             self.save_result()
             self.state = self.WIN
@@ -453,26 +446,26 @@ class App:
         rows = [("Moves", str(self.win_moves))]
         if self.mode == "ai":
             rows += [
-                ("Time",    f"{self.win_time:.4f} s"),
-                ("Memory",  f"{self.win_mem:,} bytes"),
-                ("States",  f"{self.win_states:,}"),
-                ("Method",  f"{self.ai_method.upper()}"),
+                ("Time", f"{self.win_time:.4f} s"),
+                ("Memory", f"{self.win_mem:,} bytes"),
+                ("States", f"{self.win_states:,}"),
+                ("Method", f"{self.ai_method.upper()}"),
                 ("Heuristic", self.ai_heur),
             ]
 
         y = 145
         for label, val in rows:
             draw_text(surf, label, self.font_body, TEXT_DIM, 110, y, "midleft")
-            draw_text(surf, val,   self.font_body, TEXT,     300, y, "midleft")
+            draw_text(surf, val, self.font_body, TEXT, 300, y, "midleft")
             pygame.draw.line(surf, (50, 50, 62), (90, y+22), (WIDTH-90, y+22), 1)
             y += 44
 
         draw_text(surf, "Results saved to  output.txt", self.font_sm, SUCCESS, WIDTH//2, y+18)
 
-        menu_r  = pygame.Rect(WIDTH//2-135, HEIGHT-130, 120, 48)
+        menu_r = pygame.Rect(WIDTH//2-135, HEIGHT-130, 120, 48)
         again_r = pygame.Rect(WIDTH//2+15,  HEIGHT-130, 120, 48)
-        draw_button(surf, self.font_body, "<- Menu", menu_r,  menu_r.collidepoint(mx, my))
-        draw_button(surf, self.font_body, "Again",   again_r, again_r.collidepoint(mx, my), ACCENT)
+        draw_button(surf, self.font_body, "<- Menu", menu_r, menu_r.collidepoint(mx, my))
+        draw_button(surf, self.font_body, "Again", again_r, again_r.collidepoint(mx, my), ACCENT)
 
         for e in events:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
@@ -490,10 +483,10 @@ class App:
         if not self.stack: return
         if self.mode == "ai":
             sol_path = self.ai_stats.get("path", [])
-            initial  = sol_path[0] if sol_path else self.stack.as_tuple()
+            initial = sol_path[0] if sol_path else self.stack.as_tuple()
         else:
             sol_path = self.stack.path
-            initial  = self.stack.initial_state
+            initial = self.stack.initial_state
         file_io.write_result("output.txt",initial,sol_path,self.win_moves,self.win_time,self.win_mem,self.win_states)
 
 
