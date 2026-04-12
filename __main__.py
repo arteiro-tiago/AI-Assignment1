@@ -18,22 +18,25 @@ SUCCESS = (80, 200, 120)
 QUIT = (220, 80, 80)
 
 
+# renderiza texto numa superficie do pygame, com alinhamento configurável
 def draw_text(surf, text, font, color, cx, cy, anchor="center"):
     img = font.render(text, True, color)
     r = img.get_rect()
-    if anchor == "center":   r.center   = (cx, cy)
-    elif anchor == "midleft": r.midleft = (cx, cy)
+    if anchor == "center":    r.center   = (cx, cy)
+    elif anchor == "midleft": r.midleft  = (cx, cy)
     surf.blit(img, r)
     return r
 
 
+# desenha um botão retangular com borda colorida e texto centrado
 def draw_button(surf, font, text, rect, hovered, color=None):
-    bg = BTN_HOV if hovered else BTN_BG
+    bg = BTN_HOV if hovered else BTN_BG                                      # cor de fundo muda ao passar o rato
     pygame.draw.rect(surf, bg, rect, border_radius=8)
-    border_col = color if color else (ACCENT if hovered else (60, 60, 75))
+    border_col = color if color else (ACCENT if hovered else (60, 60, 75))   # borda destaca quando fazemos hover
     pygame.draw.rect(surf, border_col, rect, 2, border_radius=8)
     draw_text(surf, text, font, TEXT, rect.centerx, rect.centery)
 
+# calcula as dimensões (altura, espaço, largura min/max) das peças em função do nº de pancakes
 def piece_dims(total):
     available_h = HEIGHT - 360
     slot = max(10, available_h // total)
@@ -41,65 +44,75 @@ def piece_dims(total):
     gap = slot - h
     max_w = WIDTH - 120
     min_w = max(20, max_w // 4)
-    step = max(1, (max_w - min_w) // max(total - 1, 1))
+    step = max(1, (max_w - min_w) // max(total - 1, 1))  # aumento da largura por rank
     return h, gap, min_w, step
 
 
 class Piece:
+    # Inicializa uma peça com o rank e dimensões de acordo com o total de pancakes
     def __init__(self, rank, total):
         self.rank = rank
         self.total = total
         h, gap, min_w, step = piece_dims(total)
         self.height = h
         self.gap = gap
-        self.width = min_w + (rank - 1) * step
+        self.width = min_w + (rank - 1) * step   # quanto maior a peça, mais larga
 
+    # Devolve uma cor interpolada entre vermelho e laranja
     def color(self):
-        t = (self.rank - 1) / max(self.total - 1, 1)
-        return (225, 20+int(200 * (1 - t)), 25)
+        t = (self.rank - 1) / max(self.total - 1, 1)   # t=0 é a menor peça, t=1 é a maior peça
+        return (225, 20 + int(200 * (1 - t)), 25)
 
+
+    # Desenha a peça centrada horizontalmente em cx, na posição vertical y
     def draw(self, surf, cx, y, highlight=False):
         w = self.width
         rect = pygame.Rect(cx - w // 2, y, w, self.height)
         col = self.color()
         if highlight:
-            col = (255, 255, 255)
+            col = (255, 255, 255)                              # branco para indicar hint
         pygame.draw.rect(surf, col, rect, border_radius=6)
         pygame.draw.rect(surf, (0, 0, 0), rect, 1, border_radius=6)
         return rect
 
 
 class Stack:
+    # Inicializa a pilha: a partir de uma lista de ranks ou gerada aleatoriamente
     def __init__(self, items=None, num_pancakes=7):
+        
         if items is not None:
             total = max(items)
             self.items = [Piece(r, total) for r in items]
         else:
             n = num_pancakes
             ranks = list(range(1, n + 1))
-            random.shuffle(ranks)
+            random.shuffle(ranks)                              # ordem inicial aleatória
             self.items = [Piece(r, n) for r in ranks]
         self.moves = 0
         self.initial_state = self.as_tuple()
-        self.path = [self.as_tuple()]   # record every state after each flip
+        self.path = [self.as_tuple()]                          # regista todos os estados para guardar no ficheiro de output
 
+    # Inverte a sub-pilha do topo até ao indice indicado (única operação do nosso jogo)
     def flip(self, index):
         portion = self.items[:index + 1]
         self.items[:index + 1] = list(reversed(portion))
         self.moves += 1
         self.path.append(self.as_tuple())
 
+    # Verifica se a pilha está ordenada 
     def is_solved(self):
-        return all(self.items[i].rank <= self.items[i + 1].rank for i in range(len(self.items) - 1))
-
+        return self.as_tuple() == tuple(sorted(self.as_tuple()))
+    
+    # Devolve o estado atual da pilha como tuplo de ranks
     def as_tuple(self):
         return tuple(p.rank for p in self.items)
 
+    # Desenha todas as peças da pilha, e destaca as que estão acima do índice de hint
     def draw(self, surf, cx, start_y, highlight_idx=None):
         rects = []
         y = start_y
         for i, p in enumerate(self.items):
-            hl = (highlight_idx is not None and i <= highlight_idx)
+            hl = (highlight_idx is not None and i <= highlight_idx)   # destaca peças acima do flip sugerido
             r = p.draw(surf, cx, y, highlight=hl)
             rects.append(r)
             y += p.height + p.gap
@@ -107,12 +120,14 @@ class Stack:
 
 
 class App:
+    # estados possíveis da aplicação
     MENU = "menu"
     SETUP = "setup"
     PLAYING = "playing"
     AI_SOLVE = "ai_solve"
     WIN = "win"
 
+    # inicia o pygame, a janela e todas as variáveis de estado da aplicação
     def __init__(self):
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -126,26 +141,27 @@ class App:
 
         self.state = self.MENU
         self.stack = None
-        self.mode = None
+        self.mode = None          # "manual" ou "ai"
         self.num_pan = 7
         self.ai_method = "astar"
         self.ai_heur = "gap"
-        self.hint_idx = None
-        self.hint_timer = 0
-        self.setup_mode = None
+        self.hint_idx = None      # índice do flip sugerido pelo hint
+        self.hint_timer = 0      # timestamp até quando o hint é mostrado
+        self.setup_mode = None    # "manual" ou "ai", definido no menu
 
         self.win_moves = 0
         self.win_time = 0.0
         self.win_mem = 0
         self.win_states = 0
 
-        self.ai_queue = []
-        self.ai_delay = 350
-        self.ai_last = 0
-        self.ai_stats = {}
-        self.ai_done = False
+        self.ai_queue = []        # sequência de estados para mostrar ao usuário durante a resolução
+        self.ai_delay = 350       # milissegundos entre cada passo da animação
+        self.ai_last = 0          # timestamp do último passo animado
+        self.ai_stats = {}        # estatísticas do solver
+        self.ai_done = False      # True quando o solver terminar
 
 
+    # ciclo principal: processa eventos e delega o desenho ao handler do estado atual
     def run(self):
         while True:
             self.clock.tick(60)
@@ -181,11 +197,7 @@ class App:
             "ai": pygame.Rect(WIDTH//2-130, 370, 260, 52),
             "quit": pygame.Rect(WIDTH//2-130, 460, 260, 52),
         }
-        labels = {
-            "play": "Play Manually",
-            "ai": "AI Solver",
-            "quit": "Quit",
-        }
+        labels = {"play": "Play Manually", "ai": "AI Solver", "quit": "Quit"}
         colors = {"play": ACCENT, "ai": ACCENT2, "quit": QUIT}
 
         clicked = None
@@ -197,10 +209,10 @@ class App:
         for k, r in btns.items():
             draw_button(surf, self.font_body, labels[k], r, r.collidepoint(mx, my), colors[k])
 
-        if clicked == "play": 
+        if clicked == "play":
             self.setup_mode = "manual"
             self.state = self.SETUP
-        elif clicked == "ai":  
+        elif clicked == "ai":
             self.setup_mode = "ai"
             self.state = self.SETUP
         elif clicked == "quit":
@@ -215,6 +227,7 @@ class App:
         title = "Manual Setup" if self.setup_mode == "manual" else "AI Solver Setup"
         draw_text(surf, title, self.font_h2, ACCENT, WIDTH//2, 55)
 
+        # seletor do número de pancakes
         draw_text(surf, "Number of Pancakes", self.font_body, TEXT_DIM, WIDTH//2, 115)
         minus_r = pygame.Rect(WIDTH//2-75, 138, 44, 36)
         plus_r = pygame.Rect(WIDTH//2+31, 138, 44, 36)
@@ -227,6 +240,7 @@ class App:
         heur_rects = {}
 
         if self.setup_mode == "ai":
+            # seleção do algoritmo
             draw_text(surf, "Algorithm", self.font_body, TEXT_DIM, WIDTH//2, y); y += 32
             methods = ["bfs","dfs","ids","ucs","greedy","astar","wastar"]
             col_w = 82
@@ -241,6 +255,7 @@ class App:
                 draw_text(surf, m.upper(), self.font_sm, BG if sel else TEXT, r.centerx, r.centery)
             y += 46
 
+            # seleção da heurística 
             draw_text(surf, "Heuristic", self.font_body, TEXT_DIM, WIDTH//2, y); y += 32
             heurs = ["gap","adjancy","top_prime","l_top_prime"]
             col_w2 = 130
@@ -265,7 +280,7 @@ class App:
         for e in events:
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 if minus_r.collidepoint(mx, my): self.num_pan = max(3, self.num_pan-1)
-                if plus_r.collidepoint(mx, my): self.num_pan = min(50, self.num_pan+1)
+                if plus_r.collidepoint(mx, my):  self.num_pan = min(50, self.num_pan+1)
 
                 for m, r in algo_rects.items():
                     if r.collidepoint(mx, my): self.ai_method = m
@@ -283,6 +298,7 @@ class App:
                         self.state = self.AI_SOLVE
 
                 if load_r.collidepoint(mx, my):
+                    #usa como input o ficheiro "input.txt"
                     self.try_load_file('input.txt')
 
                 if back_r.collidepoint(mx, my):
@@ -303,8 +319,8 @@ class App:
         except Exception as ex:
             print(f"Could not load {fname}: {ex}")
 
-
     def handle_playing(self, events):
+        # ecrã do jogo manual: mostra a pilha, deteta hover do rato e processa flips
         surf = self.screen
         surf.fill(BG)
         mx, my = pygame.mouse.get_pos()
@@ -320,27 +336,30 @@ class App:
 
         n = len(self.stack.items)
         p0 = self.stack.items[0]
-        slot = p0.height + p0.gap
+        slot = p0.height + p0.gap                    # altura total ocupada por uma peça
         stack_h = n * slot
         start_y = (HEIGHT - stack_h) // 2 + 20
         cx = WIDTH // 2
 
+        # deteta qual a peça sob o cursor do rato
         hover_idx = None
         for i in range(n):
             yy = start_y + i * slot
             if yy <= my <= yy + p0.height:
                 hover_idx = i; break
 
+        # determina se o hint ainda está dentro do tempo de exibição
         hl = None
         if self.hint_idx is not None:
             if pygame.time.get_ticks() < self.hint_timer:
                 hl = self.hint_idx
             else:
-                self.hint_idx = None
+                self.hint_idx = None   # hint expirou
 
         self.stack.draw(surf, cx, start_y, highlight_idx=hl)
 
         if hover_idx is not None:
+            # desenha uma linha horizontal a indicar onde o flip vai acontecer
             line_y = start_y + (hover_idx + 1) * slot - 2
             pygame.draw.line(surf, ACCENT, (cx-310, line_y), (cx+310, line_y), 2)
 
@@ -354,7 +373,7 @@ class App:
                 elif menu_r.collidepoint(mx, my):
                     self.state = self.MENU
                 elif hover_idx is not None:
-                    self.stack.flip(hover_idx)
+                    self.stack.flip(hover_idx)     # executa o flip na peça clicada
                     self.hint_idx = None
 
         if self.stack.is_solved():
@@ -366,10 +385,11 @@ class App:
             self.state = self.WIN
 
     def request_hint(self):
+        # pede ao solver (com o A* + gap) o próximo flip ótimo e ativa o highlight durante 2 segundos
         idx = pb.get_hint(self.stack.as_tuple())
         if idx is not None:
             self.hint_idx = idx
-            self.hint_timer = pygame.time.get_ticks() + 2000
+            self.hint_timer = pygame.time.get_ticks() + 2000   # 2000 ms = 2 segundos
 
     def start_ai(self):
         import threading
@@ -382,12 +402,12 @@ class App:
             initial = self.stack.as_tuple()
             goal, t, mem, states = pb.solve(
                 initial, method=self.ai_method, heuristic_name=self.ai_heur)
-            path = pb.get_path(goal)
+            path = pb.get_path(goal)                            # lista de estados desde inicial até solução
             self.ai_queue = path
             self.ai_stats = {"time": t, "mem": mem, "states": states, "moves": len(path)-1, "path": path}
-            self.ai_done = True
+            self.ai_done = True                                 # sinaliza o main loop que pode começar a animar
 
-        threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()   # daemon=True: a thread morre com o programa
 
     def handle_ai(self, events):
         surf = self.screen
@@ -409,17 +429,19 @@ class App:
         self.stack.draw(surf, WIDTH // 2, start_y)
 
         if not self.ai_done:
-            draw_text(surf, f"Solving...", self.font_h2, ACCENT, WIDTH//2, 52)
-            return
+            draw_text(surf, "Solving...", self.font_h2, ACCENT, WIDTH//2, 52)
+            return   
 
+        # avança um passo da animação a cada ai_delay 
         now = pygame.time.get_ticks()
         if len(self.ai_queue) > 1 and now - self.ai_last > self.ai_delay:
             next_ranks = self.ai_queue[1]
             curr = self.stack.as_tuple()
+            # descobre qual o indice de flip que transforma o estado atual no próximo
             for i in range(1, len(curr)):
                 if curr[:i+1][::-1] + curr[i+1:] == next_ranks:
                     self.stack.flip(i); break
-            self.ai_queue.pop(0)
+            self.ai_queue.pop(0)       # remove o estado já executado da fila
             self.ai_last = now
 
         s = self.ai_stats
@@ -431,10 +453,9 @@ class App:
             self.win_moves = s.get("moves", self.stack.moves)
             self.win_time = s.get("time",  0)
             self.win_mem = s.get("mem",   0)
-            self.win_states = s.get("states",0)
+            self.win_states = s.get("states", 0)
             self.save_result()
             self.state = self.WIN
-
 
     def handle_win(self, events):
         surf = self.screen
@@ -457,7 +478,7 @@ class App:
         for label, val in rows:
             draw_text(surf, label, self.font_body, TEXT_DIM, 110, y, "midleft")
             draw_text(surf, val, self.font_body, TEXT, 300, y, "midleft")
-            pygame.draw.line(surf, (50, 50, 62), (90, y+22), (WIDTH-90, y+22), 1)
+            pygame.draw.line(surf, (50, 50, 62), (90, y+22), (WIDTH-90, y+22), 1)   # linha separadora
             y += 44
 
         draw_text(surf, "Results saved to  output.txt", self.font_sm, SUCCESS, WIDTH//2, y+18)
@@ -480,6 +501,7 @@ class App:
                         self.state = self.AI_SOLVE
 
     def save_result(self):
+        # guarda o resultado da sessão (caminho, movimentos, tempo, memória) no "output.txt"
         if not self.stack: return
         if self.mode == "ai":
             sol_path = self.ai_stats.get("path", [])
@@ -487,7 +509,7 @@ class App:
         else:
             sol_path = self.stack.path
             initial = self.stack.initial_state
-        file_io.write_result("output.txt",initial,sol_path,self.win_moves,self.win_time,self.win_mem,self.win_states)
+        file_io.write_result("output.txt", initial, sol_path, self.win_moves, self.win_time, self.win_mem, self.win_states)
 
 
 if __name__ == "__main__":
