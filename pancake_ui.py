@@ -5,37 +5,44 @@ import pancake_brain as pb
 
 
 # ──────────────────────────────────────────────
-#  Constants
+#  Constants Screen
 # ──────────────────────────────────────────────
 WIDTH, HEIGHT = 640, 720
 FPS = 60
 
 
-# Palette
-BG_COLOR        = (15,  15,  20)
-PANEL_COLOR     = (25,  25,  35)
-ACCENT          = (255, 180,  50)   # warm amber
-ACCENT_DIM      = (180, 120,  30)
-TEXT_COLOR      = (230, 230, 230)
-TEXT_DIM        = (140, 140, 155)
-BTN_COLOR       = (40,  40,  55)
-BTN_HOVER       = (60,  60,  80)
-BTN_BORDER      = (80,  80, 110)
-SUCCESS_COLOR   = (80, 210, 130)
-DANGER_COLOR    = (220,  80,  80)
-FLIP_HIGHLIGHT  = (255, 220, 100, 80)   # RGBA – used via surface
+# ──────────────────────────────────────────────
+#  Colors
+# ──────────────────────────────────────────────
+BACKGROUND_COLOR = (15,  15,  20)
+PANEL_COLOR = (25,  25,  35)
+ACCENT = (255, 180,  50)   
+ACCENT_DIM = (180, 120,  30)
+TEXT_COLOR = (230, 230, 230)
+TEXT_DIM = (140, 140, 155)
+BTN_COLOR = (40,  40,  55)
+BTN_HOVER = (60,  60,  80)
+BTN_BORDER = (80,  80, 110)
+SUCCESS_COLOR = (80, 210, 130)
+DANGER_COLOR = (220,  80,  80)
+FLIP_HIGHLIGHT = (255, 220, 100, 80)  
 
-# Pancake palette (cool → warm gradient per rank)
+
+# ──────────────────────────────────────────────
+# Atribuir cor a cada panqueca
+# ──────────────────────────────────────────────
+
 def pancake_color(rank, n_total, selected=False, flipping=False):
-    t = (rank - 1) / max(n_total - 1, 1)
+    t = (rank - 1) / max(n_total - 1, 1) # Evitar divisão por 0
     r = int(60  + t * 195)
     g = int(100 + t * 80)
     b = int(200 - t * 150)
-    if flipping:
-        return (min(r + 80, 255), min(g + 60, 255), min(b + 20, 255))
+    if flipping: 
+        return (min(r + 80, 255), min(g + 60, 255), min(b + 20, 255)) # não implementado
     if selected:
-        return (min(r + 50, 255), min(g + 40, 255), min(b + 10, 255))
+        return (min(r + 50, 255), min(g + 40, 255), min(b + 10, 255)) # Cursor sobre a panqueca clarifica a sua cor
     return (r, g, b)
+
 
 # ──────────────────────────────────────────────
 #  Geometry helpers
@@ -89,7 +96,7 @@ class Button:
         pygame.draw.rect(surface, fill, self.rect, border_radius=10)
         pygame.draw.rect(surface, BTN_BORDER if not self.accent else ACCENT,
                          self.rect, 1, border_radius=10)
-        tc = BG_COLOR if self.accent else TEXT_COLOR
+        tc = BACKGROUND_COLOR if self.accent else TEXT_COLOR
         txt = font.render(self.label, True, tc)
         surface.blit(txt, txt.get_rect(center=self.rect.center))
 
@@ -172,7 +179,6 @@ class Dropdown:
         arrow = "▲" if self.open else "▼"
         arr = font_tiny.render(arrow, True, TEXT_DIM)
         surface.blit(arr, arr.get_rect(midright=(self.rect.right - 8, self.rect.centery)))
-        # Dropdown items
         if self.open:
             for i, opt in enumerate(self.options):
                 ir = pygame.Rect(self.rect.x, self.rect.bottom + i * self.rect.h,
@@ -283,9 +289,7 @@ class PancakeGame:
 
     def _start_solve(self):
         initial = tuple(self.stack)
-        goal_node = pb.solve(initial,
-                             method=self.algo,
-                             heuristic_name=self.heur)
+        goal_node, elapsed, memory, states = pb.solve(initial, method=self.algo, heuristic_name=self.heur)
         if not goal_node:
             return
         path, node = [], goal_node
@@ -417,7 +421,7 @@ class PancakeGame:
     #  DRAW
     # ══════════════════════════════════════════
     def draw(self):
-        self.screen.fill(BG_COLOR)
+        self.screen.fill(BACKGROUND_COLOR)
 
         if self.state == self.MENU:
             self._draw_menu()
@@ -474,7 +478,7 @@ class PancakeGame:
 
         # "Solving..." badge
         if self.solving:
-            badge = self.font_tiny.render("⟳  AI solving…", True, BG_COLOR)
+            badge = self.font_tiny.render("⟳  AI solving…", True, BACKGROUND_COLOR)
             br = badge.get_rect(centerx=WIDTH // 2, centery=25)
             pygame.draw.rect(self.screen, ACCENT, br.inflate(16, 8), border_radius=6)
             self.screen.blit(badge, br)
