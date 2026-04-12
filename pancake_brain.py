@@ -4,11 +4,12 @@ import math
 import time
 import tracemalloc
 
-# Global variable to count states, easier for now
+# variável global para contar o nº de estados explorados as pesquisas
 explored_states = 0
 
 
 
+# representa um estado da pilha de como um tuplo imutável e hashável
 class PancakeState:
     def __init__(self, stack):
         self.stack = tuple(stack)
@@ -30,6 +31,7 @@ class PancakeState:
 
 
 
+# inverte os primeiros i+1 elementos da pilha e devolve o novo estado com custo 1
 def flip(state, i):
     if i < 1 or i >= len(state.stack):
         return None
@@ -37,6 +39,7 @@ def flip(state, i):
     return PancakeState(new_stack), 1
 
 
+# gera todos os estados filhos possíveis a partir do estado atual (um flip por posição)
 def child_pancake_states(state):
 
     children = []
@@ -49,10 +52,12 @@ def child_pancake_states(state):
 
 
 
+# verifica se a pilha está ordenada
 def goal_pancake_state(state):
     return state.stack == tuple(sorted(state.stack))
 
 
+# nó da árvore de pesquisa: guarda o estado, o pai, os filhos e o custo acumulado
 class TreeNode:
     def __init__(self, state, parent=None):
         self.state = state
@@ -60,6 +65,7 @@ class TreeNode:
         self.children = []
         self.cost = 0 
 
+    # adiciona um child node, e atualiza o custo acumulado e o pointer para o pai
     def add_child(self, child_node, operator_cost=0):
         self.children.append(child_node)
         child_node.cost = self.cost + operator_cost
@@ -68,17 +74,9 @@ class TreeNode:
     def __lt__(self, other):
         return self.cost < other.cost
 
-def print_solution(node):
-    path = []
-    while node:
-        path.append(node.state)
-        node = node.parent
-    path.reverse()
-    for step in path:
-        print(step)
 
-
-def _invert_permutation(stack):
+# calcula a permutação inversa da pilha: inverse[rank] = posição do rank na pilha
+def invert_permutation(stack):
     n = len(stack)
     inverse = [0] * (n + 1)
     for pos, rank in enumerate(stack):
@@ -86,21 +84,24 @@ def _invert_permutation(stack):
     return tuple(inverse[1:])
 
 
+# heuristica de adjacência: conta pares consecutivos cujos ranks não são adjacentes
 def heuristic_adjacency(node):
     stack = node.state.stack
     return sum(1 for i in range(len(stack) - 1) if abs(stack[i] - stack[i + 1]) != 1)
 
 
+# heuristica gap: conta quebras de adjacência + penalidade se o maior pancake não está na base
 def heuristic_gap(node):
     stack = node.state.stack
     n = len(stack)
     gaps = sum(1 for i in range(n - 1) if abs(stack[i] - stack[i + 1]) != 1)
     if stack[-1] != n:
-        gaps += 1
+        gaps += 1                  # penalidade extra porque o maior pancake não está na base
     return gaps
 
 
-def _gap_raw(stack):
+# versão interna do gap sem wrapper de nó, para usar nas heuristicas compostas
+def gap_raw(stack):
     n = len(stack)
     gaps = sum(1 for i in range(n - 1) if abs(stack[i] - stack[i + 1]) != 1)
     if stack[-1] != n:
@@ -108,38 +109,38 @@ def _gap_raw(stack):
     return gaps
 
 
-def _top_heuristic_raw(stack):
-    base = _gap_raw(stack)
+# heuristica top': se nenhum flip reduz o gap, adiciona 1 ao valor base (força lower bound mais apertado)
+def top_heuristic_raw(stack):
+    base = gap_raw(stack)
     if base == 0:
         return 0
     n = len(stack)
     for i in range(1, n):
         child = stack[:i + 1][::-1] + stack[i + 1:]
-        if _gap_raw(child) < base:
-            return base
-    return base + 1
+        if gap_raw(child) < base:
+            return base            # existe um flip que melhora então devolve o valor base sem penalidade
+    return base + 1                # nenhum flip melhora então adiciona penalidade de +1
 
 
+# heurística top': aplica top_heuristic_raw à pilha e à sua permutação inversa, retorna o máximo
 def heuristic_top_prime(node):
     stack = node.state.stack
-    inv = _invert_permutation(stack)
-    return max(_top_heuristic_raw(stack), _top_heuristic_raw(inv))
+    inv = invert_permutation(stack)
+    return max(top_heuristic_raw(stack), top_heuristic_raw(inv))
 
 
+# versão interna do top' sem wrapper de nó, usada no l_top_prime
 def _top_prime_raw(stack):
-    inv = _invert_permutation(stack)
-    return max(_top_heuristic_raw(stack), _top_heuristic_raw(inv))
+    inv = invert_permutation(stack)
+    return max(top_heuristic_raw(stack), top_heuristic_raw(inv))
 
 
+# heurística L-Top': lookahead de top'
 def heuristic_l_top_prime(node):
-    """
-    L-Top' heuristic (artigo de referência):
-    Lookahead de top' — max( lookahead(stack), lookahead(inverso(stack)) ).
-    Admissível e domina top'.
-    """
     stack = node.state.stack
-    inv = _invert_permutation(stack)
+    inv = invert_permutation(stack)
 
+    # para cada estado, considera o melhor filho possível e garante que h >= h_filho + 1
     def lookahead(s):
         base = _top_prime_raw(s)
         if base == 0:
@@ -154,6 +155,7 @@ def heuristic_l_top_prime(node):
     return max(lookahead(stack), lookahead(inv))
 
 
+# devolve a função de heuristíca correspondente ao nome fornecido
 def getHeuristicByName(heuristic_name):
     if(heuristic_name == "gap"):
         return heuristic_gap
@@ -167,9 +169,8 @@ def getHeuristicByName(heuristic_name):
 
 
 
-
+# pesquisa em largura: écompleta e ótima; expande nós por ordem de profundidade crescente
 def breadth_first_search(initial_state, goal_state_func, operators_func):
-    """BFS — completa e ótima para custos uniformes."""
     global explored_states
     root = TreeNode(initial_state)
     queue = deque([root])
@@ -191,6 +192,7 @@ def breadth_first_search(initial_state, goal_state_func, operators_func):
     return None
 
 
+# pesquisa em profundidade: não garante solução ótima; usa pilha LIFO
 def depth_first_search(initial_state, goal_state_func, operators_func):
     global explored_states
     root = TreeNode(initial_state)
@@ -213,6 +215,7 @@ def depth_first_search(initial_state, goal_state_func, operators_func):
     return None
 
 
+# pesquisa em profundidade com limite máximo; devolve None se não encontrar uma solução dentro do limite
 def depth_limited_search(initial_state, goal_state_func, operators_func, depth_limit):
 
     def dls(node, limit, visited_path):
@@ -221,7 +224,7 @@ def depth_limited_search(initial_state, goal_state_func, operators_func, depth_l
         if goal_state_func(node.state):
             return node
         if limit == 0:
-            return None
+            return None                        # limite atingido: não expande mais
         for state, cost in operators_func(node.state):
             if state not in visited_path:
                 visited_path.add(state)
@@ -230,13 +233,14 @@ def depth_limited_search(initial_state, goal_state_func, operators_func, depth_l
                 result = dls(child, limit - 1, visited_path)
                 if result is not None:
                     return result
-                visited_path.discard(state)
+                visited_path.discard(state)    # backtrack: remove do caminho atual ao recuar
         return None
 
     root = TreeNode(initial_state)
     return dls(root, depth_limit, {initial_state})
 
 
+# pesquisa por aprofundamento iterativo: repete DLS com limite crescente até encontrar solução
 def iterative_deepening_search(initial_state, goal_state_func, operators_func, depth_limit=50):
 
     for limit in range(depth_limit + 1):
@@ -246,6 +250,7 @@ def iterative_deepening_search(initial_state, goal_state_func, operators_func, d
     return None
 
 
+# pesquisa de custo uniforme: expande sempre o nó de menor custo acumulado (g)
 def uniform_cost_search(initial_state, goal_state_func, operators_func):
     global explored_states
     root = TreeNode(initial_state)
@@ -256,7 +261,7 @@ def uniform_cost_search(initial_state, goal_state_func, operators_func):
         explored_states += 1
         g, node = heapq.heappop(heap)
         if best_g.get(node.state, math.inf) < g:
-            continue
+            continue                           # ignora entradas obsoletas na heap
         if goal_state_func(node.state):
             return node
 
@@ -272,6 +277,7 @@ def uniform_cost_search(initial_state, goal_state_func, operators_func):
 
 
 
+# pesquisa greedy: expande sempre o nó com menor valor heurístico h, sem considerar o custo g
 def greedy_search(initial_state, goal_state_func, operators_func, heuristic_func):
     global explored_states
     root = TreeNode(initial_state)
@@ -291,11 +297,12 @@ def greedy_search(initial_state, goal_state_func, operators_func, heuristic_func
                 node.add_child(child, cost)
                 queue.append((child, heuristic_func(child)))
 
-        queue = sorted(queue, key=lambda x: x[1])
+        queue = sorted(queue, key=lambda x: x[1])   # reordena pela heurística após cada expansão
 
     return None
 
 
+# pesquisa A*: expande pelo menor f = g + h; ótima se a heuristica for admissível
 def a_star_search(initial_state, goal_state_func, operators_func, heuristic_func):
     global explored_states
     root = TreeNode(initial_state)
@@ -315,11 +322,12 @@ def a_star_search(initial_state, goal_state_func, operators_func, heuristic_func
                 node.add_child(child, cost)
                 queue.append((child, child.cost + heuristic_func(child)))
 
-        queue = sorted(queue, key=lambda x: x[1])
+        queue = sorted(queue, key=lambda x: x[1])   # reordena por f = g + h
 
     return None
 
 
+# Weighted A* : multiplica h por weight para explorar menos nós à custa de optimalidade
 def weighted_a_star_search(initial_state, goal_state_func, operators_func,heuristic_func, weight=1.5):
     global explored_states
     root = TreeNode(initial_state)
@@ -339,11 +347,12 @@ def weighted_a_star_search(initial_state, goal_state_func, operators_func,heuris
                 node.add_child(child, cost)
                 queue.append((child, child.cost + weight * heuristic_func(child)))
 
-        queue = sorted(queue, key=lambda x: x[1])
+        queue = sorted(queue, key=lambda x: x[1])   # reordena por f = g + weight*h
 
     return None
 
 
+# reconstrói o caminho desde a raiz até ao nó goal, devolvendo lista de tuplos de ranks
 def get_path(node):
     path = []
     curr = node
@@ -353,6 +362,7 @@ def get_path(node):
     path.reverse()
     return path
 
+# ponto de entrada do solver: escolhe o algoritmo, mede tempo e memória, devolve (goal, tempo, mem, estados)
 def solve(initial_state, method="astar", heuristic_name="gap", weight=1.5, max_depth=50):
     global explored_states
     explored_states = 0
@@ -382,21 +392,21 @@ def solve(initial_state, method="astar", heuristic_name="gap", weight=1.5, max_d
         goal = weighted_a_star_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func, weight)
 
     end_time = time.time()
-    _, peak_memory = tracemalloc.get_traced_memory()
+    _, peak_memory = tracemalloc.get_traced_memory()   # pico de memória em bytes durante a pesquisa
     tracemalloc.stop()
     
     elapsed_time = end_time - start_time
     
     return goal, elapsed_time, peak_memory, explored_states
 
+# usa A* + gap para sugerir o próximo flip ótimo; devolve o índice do flip ou None se já resolvido
 def get_hint(initial_state):
-    # Uses A* which is the fastest guaranteed to give best hint
     goal, time_taken, memory, states = solve(initial_state, "astar", "gap")
     if not goal: return None
     path = get_path(goal)
     if len(path) > 1:
         next_state = path[1]
-        # find the index that was flipped
+        # descobre qual o indice de flip que transforma o estado atual no próximo estado ótimo
         for i in range(1, len(initial_state)):
             if initial_state[:i + 1][::-1] + initial_state[i + 1:] == next_state:
                 return i
