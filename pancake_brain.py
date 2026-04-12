@@ -1,6 +1,12 @@
 from collections import deque
 import heapq
 import math
+import time
+import tracemalloc
+
+# Global variable to count states, easier for now
+explored_states = 0
+
 
 
 class PancakeState:
@@ -164,11 +170,13 @@ def getHeuristicByName(heuristic_name):
 
 def breadth_first_search(initial_state, goal_state_func, operators_func):
     """BFS — completa e ótima para custos uniformes."""
+    global explored_states
     root = TreeNode(initial_state)
     queue = deque([root])
     visited = {initial_state}
 
     while queue:
+        explored_states += 1
         node = queue.popleft()
         if goal_state_func(node.state):
             return node
@@ -184,12 +192,13 @@ def breadth_first_search(initial_state, goal_state_func, operators_func):
 
 
 def depth_first_search(initial_state, goal_state_func, operators_func):
-
+    global explored_states
     root = TreeNode(initial_state)
     stack = [root]
     visited = {initial_state}
 
     while stack:
+        explored_states += 1
         node = stack.pop()
         if goal_state_func(node.state):
             return node
@@ -207,6 +216,8 @@ def depth_first_search(initial_state, goal_state_func, operators_func):
 def depth_limited_search(initial_state, goal_state_func, operators_func, depth_limit):
 
     def dls(node, limit, visited_path):
+        global explored_states
+        explored_states += 1
         if goal_state_func(node.state):
             return node
         if limit == 0:
@@ -236,12 +247,13 @@ def iterative_deepening_search(initial_state, goal_state_func, operators_func, d
 
 
 def uniform_cost_search(initial_state, goal_state_func, operators_func):
-
+    global explored_states
     root = TreeNode(initial_state)
     heap = [(0, root)]
     best_g = {initial_state: 0}
 
     while heap:
+        explored_states += 1
         g, node = heapq.heappop(heap)
         if best_g.get(node.state, math.inf) < g:
             continue
@@ -261,12 +273,13 @@ def uniform_cost_search(initial_state, goal_state_func, operators_func):
 
 
 def greedy_search(initial_state, goal_state_func, operators_func, heuristic_func):
-
+    global explored_states
     root = TreeNode(initial_state)
     queue = [(root, heuristic_func(root))]
     visited = {initial_state}
 
     while queue:
+        explored_states += 1
         node, _ = queue.pop(0)
         if goal_state_func(node.state):
             return node
@@ -284,12 +297,13 @@ def greedy_search(initial_state, goal_state_func, operators_func, heuristic_func
 
 
 def a_star_search(initial_state, goal_state_func, operators_func, heuristic_func):
-
+    global explored_states
     root = TreeNode(initial_state)
     queue = [(root, 0 + heuristic_func(root))]
     visited = {initial_state}
 
     while queue:
+        explored_states += 1
         node, _ = queue.pop(0)
         if goal_state_func(node.state):
             return node
@@ -307,12 +321,13 @@ def a_star_search(initial_state, goal_state_func, operators_func, heuristic_func
 
 
 def weighted_a_star_search(initial_state, goal_state_func, operators_func,heuristic_func, weight=1.5):
-
+    global explored_states
     root = TreeNode(initial_state)
     queue = [(root, 0 + weight * heuristic_func(root))]
     visited = {initial_state}
 
     while queue:
+        explored_states += 1
         node, _ = queue.pop(0)
         if goal_state_func(node.state):
             return node
@@ -329,24 +344,60 @@ def weighted_a_star_search(initial_state, goal_state_func, operators_func,heuris
     return None
 
 
+def get_path(node):
+    path = []
+    curr = node
+    while curr:
+        path.append(curr.state.stack)
+        curr = curr.parent
+    path.reverse()
+    return path
+
 def solve(initial_state, method="astar", heuristic_name="gap", weight=1.5, max_depth=50):
+    global explored_states
+    explored_states = 0
+    
     if isinstance(initial_state, tuple):
         initial_state = PancakeState(initial_state)
     heuristic_func = getHeuristicByName(heuristic_name) 
 
+    tracemalloc.start()
+    start_time = time.time()
+
     if method == "bfs":
-        return breadth_first_search(initial_state, goal_pancake_state, child_pancake_states)
+        goal = breadth_first_search(initial_state, goal_pancake_state, child_pancake_states)
     elif method == "dfs":
-        return depth_first_search(initial_state, goal_pancake_state, child_pancake_states)
+        goal = depth_first_search(initial_state, goal_pancake_state, child_pancake_states)
     elif method == "dls":
-        return depth_limited_search(initial_state, goal_pancake_state, child_pancake_states, max_depth)
+        goal = depth_limited_search(initial_state, goal_pancake_state, child_pancake_states, max_depth)
     elif method == "ids":
-        return iterative_deepening_search(initial_state, goal_pancake_state, child_pancake_states, max_depth)
+        goal = iterative_deepening_search(initial_state, goal_pancake_state, child_pancake_states, max_depth)
     elif method == "ucs":
-        return uniform_cost_search(initial_state, goal_pancake_state, child_pancake_states)
+        goal = uniform_cost_search(initial_state, goal_pancake_state, child_pancake_states)
     elif method == "greedy":
-        return greedy_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func)
+        goal = greedy_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func)
     elif method == "astar":
-        return a_star_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func)
+        goal = a_star_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func)
     elif method == "wastar":
-        return weighted_a_star_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func, weight)
+        goal = weighted_a_star_search(initial_state, goal_pancake_state, child_pancake_states, heuristic_func, weight)
+
+    end_time = time.time()
+    _, peak_memory = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    
+    elapsed_time = end_time - start_time
+    
+    return goal, elapsed_time, peak_memory, explored_states
+
+def get_hint(initial_state):
+    # Uses A* which is the fastest guaranteed to give best hint
+    goal, time_taken, memory, states = solve(initial_state, "astar", "gap")
+    if not goal: return None
+    path = get_path(goal)
+    if len(path) > 1:
+        next_state = path[1]
+        # find the index that was flipped
+        for i in range(1, len(initial_state)):
+            if initial_state[:i + 1][::-1] + initial_state[i + 1:] == next_state:
+                return i
+    return None

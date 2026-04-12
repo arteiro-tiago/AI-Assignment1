@@ -61,11 +61,13 @@ class PancakePuzzle:
         
         initial_state = tuple(pancake.rank for pancake in self.stack.items)
         
-        goal_node = pb.solve(initial_state, method="astar", heuristic_name="gap")
+        goal_node, tempo, memoria, estados = pb.solve(initial_state, method="astar", heuristic_name="gap")
         
         if not goal_node:
             print("no solution")
             return
+
+        print(f"Resolvido em {tempo:.4f}s | Memoria: {memoria} bytes | Estados: {estados}")
 
         solution_path = []
         current_node = goal_node
